@@ -14,7 +14,7 @@ from utils.plugin_base import PluginBase
 class GroupWelcome(PluginBase):
     description = "进群欢迎，增加卡片切换功能，指令：切换欢迎卡片"
     author = "xxxbot&电脑小白"
-    version = "1.4.0"  # 增加卡片切换功能
+    version = "1.4.1"  # 修复新人进群电脑看不见头像的bug
 
     def __init__(self):
         super().__init__()
@@ -195,27 +195,61 @@ class GroupWelcome(PluginBase):
                     if self.card_style == "音乐卡片":
                         title = self.welcome_title
                         description = f"{nickname}{self.welcome_message}"
-                        xml_content = f"""<appmsg appid="" sdkver="0">
+                        # 参照Music_puls“原卡片”填充结构
+                        xml_content = f"""<appmsg appid="wx79f2c4418704b4f8" sdkver="0">
     <title>{title}</title>
     <des>{description}</des>
     <action>view</action>
     <type>3</type>
     <showtype>0</showtype>
     <content/>
-    <url></url>
+    <url>{self.url}</url>
     <dataurl>{self.music_url}</dataurl>
-    <lowurl></lowurl>
+    <lowurl>{self.url}</lowurl>
     <lowdataurl>{self.music_url}</lowdataurl>
+    <recorditem/>
     <thumburl>{avatar_url}</thumburl>
+    <messageaction/>
+    <laninfo/>
+    <extinfo/>
+    <sourceusername/>
+    <sourcedisplayname/>
+    <songlyric></songlyric>
+    <commenturl/>
+    <appattach>
+        <totallen>0</totallen>
+        <attachid/>
+        <emoticonmd5/>
+        <fileext/>
+        <aeskey/>
+    </appattach>
+    <webviewshared>
+        <publisherId/>
+        <publisherReqId>0</publisherReqId>
+    </webviewshared>
+    <weappinfo>
+        <pagepath/>
+        <username/>
+        <appid/>
+        <appservicetype>0</appservicetype>
+    </weappinfo>
+    <websearch/>
     <songalbumurl>{avatar_url}</songalbumurl>
-</appmsg>"""
+</appmsg>
+<fromusername>{bot.wxid}</fromusername>
+<scene>0</scene>
+<appinfo>
+    <version>1</version>
+    <appname/>
+</appinfo>
+<commenturl/>"""
                         logger.info(f"发送音乐欢迎卡片: {title} - {description}")
                         await self._send_app_message_direct(bot, message["FromWxid"], xml_content, 3)
 
                     elif self.card_style == "音乐卡片1":
                         title = self.welcome_title
                         description = f"{nickname}{self.welcome_message}"
-                        # 最终修复：结合简洁的结构和必要的appid
+                        # 完全参照Music_puls“摇一摇搜歌”卡片结构
                         xml_content = f"""<appmsg appid="wx485a97c844086dc9" sdkver="0">
     <title>{title}</title>
     <des>{description}</des>
@@ -227,9 +261,22 @@ class GroupWelcome(PluginBase):
     <dataurl>{self.music_url}</dataurl>
     <lowurl>{self.url}</lowurl>
     <lowdataurl>{self.music_url}</lowdataurl>
-    <thumburl>{avatar_url}</thumburl>
+    <thumburl/>
     <songlyric></songlyric>
     <songalbumurl>{avatar_url}</songalbumurl>
+    <appattach>
+        <totallen>0</totallen>
+        <attachid/>
+        <emoticonmd5/>
+        <fileext/>
+        <aeskey/>
+    </appattach>
+    <weappinfo>
+        <pagepath/>
+        <username/>
+        <appid/>
+        <appservicetype>0</appservicetype>
+    </weappinfo>
 </appmsg>
 <fromusername>{bot.wxid}</fromusername>
 <scene>0</scene>
