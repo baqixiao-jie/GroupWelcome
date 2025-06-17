@@ -3,6 +3,9 @@ import tomli_w
 import xml.etree.ElementTree as ET
 from datetime import datetime
 import os
+import aiohttp
+import random
+import re
 
 from loguru import logger
 
@@ -14,11 +17,12 @@ from utils.plugin_base import PluginBase
 class GroupWelcome(PluginBase):
     description = "进群欢迎，增加卡片切换功能，指令：切换欢迎卡片"
     author = "xxxbot&电脑小白"
-    version = "1.4.1"  # 修复新人进群电脑看不见头像的bug
+    version = "1.4.2"  # 增加随机音乐功能
 
     def __init__(self):
         super().__init__()
         self.load_config()
+        self.api_url = "https://www.hhlqilongzhu.cn/api/dg_kgmusic.php"
 
     def load_config(self):
         with open("plugins/GroupWelcome/config.toml", "rb") as f:
@@ -193,63 +197,31 @@ class GroupWelcome(PluginBase):
                         logger.warning(f"获取用户头像失败: {e}")
 
                     if self.card_style == "音乐卡片":
+                        music_url = await self._get_random_music_url() or self.music_url
                         title = self.welcome_title
                         description = f"{nickname}{self.welcome_message}"
-                        # 参照Music_puls“原卡片”填充结构
-                        xml_content = f"""<appmsg appid="wx79f2c4418704b4f8" sdkver="0">
+                        xml_content = f"""<appmsg appid="" sdkver="0">
     <title>{title}</title>
     <des>{description}</des>
     <action>view</action>
     <type>3</type>
     <showtype>0</showtype>
     <content/>
-    <url>{self.url}</url>
-    <dataurl>{self.music_url}</dataurl>
-    <lowurl>{self.url}</lowurl>
-    <lowdataurl>{self.music_url}</lowdataurl>
-    <recorditem/>
+    <url></url>
+    <dataurl>{music_url}</dataurl>
+    <lowurl></lowurl>
+    <lowdataurl>{music_url}</lowdataurl>
     <thumburl>{avatar_url}</thumburl>
-    <messageaction/>
-    <laninfo/>
-    <extinfo/>
-    <sourceusername/>
-    <sourcedisplayname/>
-    <songlyric></songlyric>
-    <commenturl/>
-    <appattach>
-        <totallen>0</totallen>
-        <attachid/>
-        <emoticonmd5/>
-        <fileext/>
-        <aeskey/>
-    </appattach>
-    <webviewshared>
-        <publisherId/>
-        <publisherReqId>0</publisherReqId>
-    </webviewshared>
-    <weappinfo>
-        <pagepath/>
-        <username/>
-        <appid/>
-        <appservicetype>0</appservicetype>
-    </weappinfo>
-    <websearch/>
     <songalbumurl>{avatar_url}</songalbumurl>
-</appmsg>
-<fromusername>{bot.wxid}</fromusername>
-<scene>0</scene>
-<appinfo>
-    <version>1</version>
-    <appname/>
-</appinfo>
-<commenturl/>"""
+</appmsg>"""
                         logger.info(f"发送音乐欢迎卡片: {title} - {description}")
                         await self._send_app_message_direct(bot, message["FromWxid"], xml_content, 3)
 
                     elif self.card_style == "音乐卡片1":
+                        music_url = await self._get_random_music_url() or self.music_url
                         title = self.welcome_title
                         description = f"{nickname}{self.welcome_message}"
-                        # 完全参照Music_puls“摇一摇搜歌”卡片结构
+                        # 最终修复：结合简洁的结构和必要的appid
                         xml_content = f"""<appmsg appid="wx485a97c844086dc9" sdkver="0">
     <title>{title}</title>
     <des>{description}</des>
@@ -258,25 +230,12 @@ class GroupWelcome(PluginBase):
     <showtype>0</showtype>
     <content/>
     <url>{self.url}</url>
-    <dataurl>{self.music_url}</dataurl>
+    <dataurl>{music_url}</dataurl>
     <lowurl>{self.url}</lowurl>
-    <lowdataurl>{self.music_url}</lowdataurl>
-    <thumburl/>
+    <lowdataurl>{music_url}</lowdataurl>
+    <thumburl>{avatar_url}</thumburl>
     <songlyric></songlyric>
     <songalbumurl>{avatar_url}</songalbumurl>
-    <appattach>
-        <totallen>0</totallen>
-        <attachid/>
-        <emoticonmd5/>
-        <fileext/>
-        <aeskey/>
-    </appattach>
-    <weappinfo>
-        <pagepath/>
-        <username/>
-        <appid/>
-        <appservicetype>0</appservicetype>
-    </weappinfo>
 </appmsg>
 <fromusername>{bot.wxid}</fromusername>
 <scene>0</scene>
@@ -427,3 +386,70 @@ class GroupWelcome(PluginBase):
 
         except Exception as e:
             logger.error(f"发送项目说明PDF文件失败: {e}")
+
+    async def _get_random_music_url(self):
+        """获取随机音乐URL"""
+        try:
+            song_list = await self._fetch_song_list("热歌榜")
+            if not song_list:
+                logger.warning("无法获取热歌榜列表")
+                return None
+
+            selected_song = random.choice(song_list)
+            song_name = f"{selected_song['title']} {selected_song['singer']}"
+            
+            song_data = await self._fetch_song_data(song_name, 1)
+            if song_data and song_data.get("music_url"):
+                music_url = song_data["music_url"].split("?")[0]
+                logger.info(f"成功获取随机音乐: {song_name} - {music_url}")
+                return music_url
+            else:
+                logger.warning(f"获取歌曲 {song_name} 的详细信息失败")
+                return None
+        except Exception as e:
+            logger.error(f"获取随机音乐URL时发生错误: {e}")
+            return None
+
+    async def _fetch_song_list(self, song_name: str) -> list:
+        """调用API获取歌曲列表."""
+        params = {"gm": song_name.replace(" ", "+"), "type": "text"}
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(self.api_url, params=params) as resp:
+                    text = await resp.text()
+                    return self._parse_song_list(text)
+        except aiohttp.ClientError as e:
+            logger.error(f"获取歌曲列表失败: {e}")
+            return []
+
+    def _parse_song_list(self, text: str) -> list:
+        """解析 TEXT 格式的歌曲列表."""
+        song_list = []
+        lines = text.splitlines()
+        for line in lines:
+            if not line.strip():
+                continue
+            parts = re.split(r'[、.-]', line, maxsplit=1)
+            if len(parts) == 2:
+                title_singer = parts[1]
+                title_singer_parts = title_singer.split('-', 1)
+                if len(title_singer_parts) == 2:
+                    title, singer = title_singer_parts
+                    song_list.append({"title": title.strip(), "singer": singer.strip()})
+        return song_list
+
+    async def _fetch_song_data(self, song_name: str, index: int) -> dict:
+        """调用API获取歌曲信息."""
+        params = {"gm": song_name.replace(" ", "+"), "n": index, "type": "json"}
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(self.api_url, params=params) as resp:
+                    data = await resp.json()
+                    if data.get("code") == 200:
+                        return data
+                    else:
+                        logger.warning(f"API返回错误: {data}")
+                        return None
+        except Exception as e:
+            logger.error(f"获取歌曲数据失败: {e}")
+            return None
