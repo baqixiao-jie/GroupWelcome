@@ -7,5 +7,4 @@ welcome_title = "👏热烈欢迎🎉"
 welcome-message = "加入群聊！"
 url = "https://sharefs.tx.kugou.com/202506121827/053e806abaf13fff124d246e984f7cfa/v3/d4740ce06e6f57eef352a04a32996d76/yp/full/ap1000_us0_pi409_s534812040.mp3" # 默认卡片点击后跳转的链接
 # 音乐卡片样式配置
-music_url = "https://sharefs.tx.kugou.com/202506121827/053e806abaf13fff124d246e984f7cfa/v3/d4740ce06e6f57eef352a04a32996d76/yp/full/ap1000_us0_pi409_s534812040.mp3"
 send-file = false
