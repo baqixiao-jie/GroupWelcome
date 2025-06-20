@@ -17,7 +17,7 @@ from utils.plugin_base import PluginBase
 class GroupWelcome(PluginBase):
     description = "进群欢迎，增加卡片切换功能，指令：切换欢迎卡片"
     author = "xxxbot&电脑小白"
-    version = "1.4.2"  # 增加随机音乐功能
+    version = "1.4.3"  # 增加管理员功能
 
     def __init__(self):
         super().__init__()
@@ -47,9 +47,11 @@ class GroupWelcome(PluginBase):
             with open("main_config.toml", "rb") as f:
                 main_config = tomllib.load(f)
                 self.protocol_version = main_config.get("Protocol", {}).get("version", "855")
+                self.admins = main_config.get("XYBot", {}).get("admins", [])
         except Exception as e:
-            logger.warning(f"读取协议版本失败，将使用默认版本849: {e}")
+            logger.warning(f"读取主配置文件失败，将使用默认值: {e}")
             self.protocol_version = "849"
+            self.admins = []
         
         logger.info(f"欢迎卡片样式: {self.card_style}")
 
@@ -57,6 +59,12 @@ class GroupWelcome(PluginBase):
     async def handle_commands(self, bot: WechatAPIClient, message: dict):
         content = str(message["Content"]).strip()
         if content == "切换欢迎卡片":
+            if message["SenderWxid"] not in self.admins:
+                await bot.send_at_message(
+                    message["FromWxid"], "你没有权限使用此命令", [message["SenderWxid"]]
+                )
+                return False  # 阻止其他插件响应
+
             try:
                 with open("plugins/GroupWelcome/config.toml", "rb") as f:
                     config = tomllib.load(f)
@@ -200,20 +208,54 @@ class GroupWelcome(PluginBase):
                         music_url = await self._get_random_music_url() or self.music_url
                         title = self.welcome_title
                         description = f"{nickname}{self.welcome_message}"
-                        xml_content = f"""<appmsg appid="" sdkver="0">
+                        # 参照Music_puls“原卡片”填充结构
+                        xml_content = f"""<appmsg appid="wx79f2c4418704b4f8" sdkver="0">
     <title>{title}</title>
     <des>{description}</des>
     <action>view</action>
     <type>3</type>
     <showtype>0</showtype>
     <content/>
-    <url></url>
+    <url>{self.url}</url>
     <dataurl>{music_url}</dataurl>
-    <lowurl></lowurl>
+    <lowurl>{self.url}</lowurl>
     <lowdataurl>{music_url}</lowdataurl>
+    <recorditem/>
     <thumburl>{avatar_url}</thumburl>
+    <messageaction/>
+    <laninfo/>
+    <extinfo/>
+    <sourceusername/>
+    <sourcedisplayname/>
+    <songlyric></songlyric>
+    <commenturl/>
+    <appattach>
+        <totallen>0</totallen>
+        <attachid/>
+        <emoticonmd5/>
+        <fileext/>
+        <aeskey/>
+    </appattach>
+    <webviewshared>
+        <publisherId/>
+        <publisherReqId>0</publisherReqId>
+    </webviewshared>
+    <weappinfo>
+        <pagepath/>
+        <username/>
+        <appid/>
+        <appservicetype>0</appservicetype>
+    </weappinfo>
+    <websearch/>
     <songalbumurl>{avatar_url}</songalbumurl>
-</appmsg>"""
+</appmsg>
+<fromusername>{bot.wxid}</fromusername>
+<scene>0</scene>
+<appinfo>
+    <version>1</version>
+    <appname/>
+</appinfo>
+<commenturl/>"""
                         logger.info(f"发送音乐欢迎卡片: {title} - {description}")
                         await self._send_app_message_direct(bot, message["FromWxid"], xml_content, 3)
 
@@ -221,7 +263,7 @@ class GroupWelcome(PluginBase):
                         music_url = await self._get_random_music_url() or self.music_url
                         title = self.welcome_title
                         description = f"{nickname}{self.welcome_message}"
-                        # 最终修复：结合简洁的结构和必要的appid
+                        # 完全参照Music_puls“摇一摇搜歌”卡片结构
                         xml_content = f"""<appmsg appid="wx485a97c844086dc9" sdkver="0">
     <title>{title}</title>
     <des>{description}</des>
@@ -233,9 +275,22 @@ class GroupWelcome(PluginBase):
     <dataurl>{music_url}</dataurl>
     <lowurl>{self.url}</lowurl>
     <lowdataurl>{music_url}</lowdataurl>
-    <thumburl>{avatar_url}</thumburl>
+    <thumburl/>
     <songlyric></songlyric>
     <songalbumurl>{avatar_url}</songalbumurl>
+    <appattach>
+        <totallen>0</totallen>
+        <attachid/>
+        <emoticonmd5/>
+        <fileext/>
+        <aeskey/>
+    </appattach>
+    <weappinfo>
+        <pagepath/>
+        <username/>
+        <appid/>
+        <appservicetype>0</appservicetype>
+    </weappinfo>
 </appmsg>
 <fromusername>{bot.wxid}</fromusername>
 <scene>0</scene>
